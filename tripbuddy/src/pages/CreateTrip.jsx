@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import GooglePlacesAutocomplete from 'react-google-places-autocomplete';
 import { BUDGET_OPTIONS, TRAVELER_OPTIONS } from '../assets/data';
 import { toast } from 'sonner';
-import { generateTripWithAI } from '../services/AIModel';
+import { generateTripWithAI } from '../services/aiModel';
 import LoginDialog from '../components/shared/LoginDialog';
 import { doc, setDoc } from "firebase/firestore";
 import { db } from '../services/firebaseConfig';
