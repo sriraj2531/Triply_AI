@@ -2,7 +2,7 @@
 
 ## Overview
 
-Trip Buddy AI is a full-stack AI travel planning application that generates personalized travel 
+Triply AI is a full-stack AI travel planning application that generates personalized travel 
 itineraries based on user preferences such as destination, budget, trip duration, and group size. 
 The application uses Google's Gemini AI along with Google Maps services to create structured and practical travel plans 
 within seconds.
@@ -27,7 +27,7 @@ within seconds.
 
 ### AI Integration
 
-* Uses Gemini 2.5 Flash for itinerary generation
+* Uses Gemini 3.1 Flash Lite for itinerary generation
 * Generates structured JSON responses
 * Provides daily schedules, activities, hotels, transportation, and estimated costs
 
@@ -53,11 +53,3 @@ within seconds.
 * Google Places API
 * Google Places Photos API
 * Google Maps API
-
-## Future Improvements
-
-* Flight recommendations
-* Weather integration
-* PDF itinerary export
-* Multi-language support
-* Expense tracking
