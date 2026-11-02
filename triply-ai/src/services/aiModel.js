@@ -1,182 +1,279 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-// Initialize the chat session with history to enforce the JSON Schema
-const chat = ai.chats.create({
-  model: "gemini-3.1-flash-lite",
-  history: [
-    {
-      role: "user",
-      parts: [{ text: "Generate a travel plan for Location: New York for 2 days for a couple traveler on economy budget. Return the result strictly as a single JSON object using camelCase keys, the travel plan with trip note and must feature hotelsOptions array, each hotel with hotelName, hotelAddress, priceRange, imageUrl, rating, description, and a coordinates, alongside an itinerary array of daily plans. Each day must include a dayNumber, theme, and an activities array, where each activity contains activityName, description, imageUrl, ticketPrice, timeRange, timeToTravel and coordinates" }],
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+
+// Active Gemini 3.5 generation models
+const CANDIDATE_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite'
+];
+
+/**
+ * Strict JSON schema for complete trip plan and destination intelligence.
+ */
+export const tripResponseSchema = {
+  type: Type.OBJECT,
+  properties: {
+    tripNote: {
+      type: Type.STRING,
+      description: "Executive travel overview, trip philosophy, and tailored advice."
     },
-    {
-      role: "model",
-      parts: [{
-        text: JSON.stringify({
-          "tripNote": "This 2-day economy travel plan for New York City focuses on experiencing the city's iconic sights and romantic charm without breaking the bank. Transportation will primarily be via the affordable NYC subway (OMNY tap-to-pay is recommended). For meals, embrace local delis, street food, and $1 pizza slices to keep costs down. The itinerary prioritizes free or low-cost attractions, offering a rich experience for a couple on a budget.",
-          "hotelsOptions": [
-            {
-              "hotelName": "Moxy NYC Downtown",
-              "hotelAddress": "143 Fulton St, New York, NY 10038",
-              "priceRange": "$160 - $230 per night",
-              "imageUrl": "https://images.unsplash.com/photo-1571896349882-e806a699c268?auto=format&fit=crop&q=80&w=1000",
-              "rating": 4.2,
-              "description": "A stylish and modern hotel in the Financial District offering compact rooms with clever design. It's well-connected by subway and close to many downtown attractions, providing good value for money.",
-              "coordinates": {
-                "latitude": 40.7101,
-                "longitude": -74.0097
-              }
+    destinationInfo: {
+      type: Type.OBJECT,
+      description: "Detailed destination intelligence, seasonal guide, and practical travel logistics.",
+      properties: {
+        overview: {
+          type: Type.STRING,
+          description: "Authoritative, engaging summary of the destination's history, culture, and highlights."
+        },
+        bestTimeToVisit: {
+          type: Type.OBJECT,
+          description: "Comprehensive seasonal guide and month-by-month recommendations.",
+          properties: {
+            bestMonths: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: "Top recommended months to travel (e.g. ['October', 'November', 'March'])."
             },
-            {
-              "hotelName": "Hotel Mimosa",
-              "hotelAddress": "145 Bowery, New York, NY 10002",
-              "priceRange": "$140 - $200 per night",
-              "imageUrl": "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&q=80&w=1000",
-              "rating": 3.9,
-              "description": "Located in the vibrant Lower East Side, Hotel Mimosa offers simple, clean, and affordable rooms. It's a great base for exploring Chinatown and Little Italy, and provides easy subway access to other parts of the city.",
-              "coordinates": {
-                "latitude": 40.7183,
-                "longitude": -73.9947
+            peakSeason: {
+              type: Type.STRING,
+              description: "Peak tourist season details (timing, atmosphere, crowd level)."
+            },
+            offSeason: {
+              type: Type.STRING,
+              description: "Low season or monsoon details and considerations."
+            },
+            isSelectedMonthGood: {
+              type: Type.BOOLEAN,
+              description: "Whether the user's chosen travel month is a favorable time to visit."
+            },
+            selectedMonthAdvice: {
+              type: Type.STRING,
+              description: "Actionable advice, weather warnings, and local tips specifically for the user's travel month."
+            },
+            monthlyGuide: {
+              type: Type.ARRAY,
+              description: "12-month calendar guide (from January through December).",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  month: { type: Type.STRING },
+                  avgTempC: { type: Type.STRING, description: "e.g. '24°C' or '18-26°C'" },
+                  rainfall: { type: Type.STRING, description: "e.g. 'Low', 'Moderate', or '120 mm'" },
+                  crowdLevel: { type: Type.STRING, description: "e.g. 'Low', 'Moderate', 'High', 'Peak'" },
+                  rating: {
+                    type: Type.STRING,
+                    enum: ["Best", "Good", "Avoid"],
+                    description: "Seasonal rating badge."
+                  },
+                  note: { type: Type.STRING, description: "One concise sentence on what to expect." }
+                },
+                required: ["month", "avgTempC", "rainfall", "crowdLevel", "rating", "note"]
               }
             }
-          ],
-          "itinerary": [
-            {
-              "dayNumber": 1,
-              "theme": "Midtown Icons & Park Romance",
-              "activities": [
-                {
-                  "activityName": "Central Park Exploration",
-                  "description": "Start your day with a romantic walk through Central Park. Visit Strawberry Fields, Bethesda Terrace, and stroll around The Lake. Pack a picnic lunch to save money.",
-                  "imageUrl": "https://images.unsplash.com/photo-1582298538104-fe2e74c27f59?auto=format&fit=crop&q=80&w=1000",
-                  "ticketPrice": "Free",
-                  "timeRange": "09:00 AM - 12:00 PM",
-                  "timeToTravel": "20-30 mins via Subway (depending on hotel)",
-                  "coordinates": {
-                    "latitude": 40.7828,
-                    "longitude": -73.9653
-                  }
-                },
-                {
-                  "activityName": "Grand Central Terminal & Chrysler Building View",
-                  "description": "Admire the magnificent architecture of Grand Central Terminal. Afterwards, walk a short distance to appreciate the exterior of the iconic Chrysler Building, a true Art Deco masterpiece.",
-                  "imageUrl": "https://images.unsplash.com/photo-1543716627-839b54c40519?auto=format&fit=crop&q=80&w=1000",
-                  "ticketPrice": "Free",
-                  "timeRange": "01:30 PM - 02:30 PM",
-                  "timeToTravel": "15 mins via Subway/Walk",
-                  "coordinates": {
-                    "latitude": 40.7527,
-                    "longitude": -73.9772
-                  }
-                },
-                {
-                  "activityName": "The High Line Park Walk",
-                  "description": "Enjoy a leisurely stroll on The High Line, an elevated urban park built on historic railway lines. It offers unique city views and beautiful landscaping, perfect for a couple.",
-                  "imageUrl": "https://images.unsplash.com/photo-1555109307-f7d9da25c244?auto=format&fit=crop&q=80&w=1000",
-                  "ticketPrice": "Free",
-                  "timeRange": "03:30 PM - 05:00 PM",
-                  "timeToTravel": "20 mins via Subway",
-                  "coordinates": {
-                    "latitude": 40.7482,
-                    "longitude": -74.0048
-                  }
-                },
-                {
-                  "activityName": "Times Square at Night",
-                  "description": "Experience the electrifying energy and dazzling billboards of Times Square after sunset. It's a free spectacle and a quintessential New York experience.",
-                  "imageUrl": "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&q=80&w=1000",
-                  "ticketPrice": "Free",
-                  "timeRange": "07:30 PM - 09:00 PM",
-                  "timeToTravel": "15 mins via Subway",
-                  "coordinates": {
-                    "latitude": 40.7580,
-                    "longitude": -73.9855
-                  }
-                }
-              ]
-            },
-            {
-              "dayNumber": 2,
-              "theme": "Lower Manhattan History & Brooklyn Views",
-              "activities": [
-                {
-                  "activityName": "Staten Island Ferry for Statue of Liberty Views",
-                  "description": "Take a free round-trip ride on the Staten Island Ferry for incredible views of the Statue of Liberty, Ellis Island, and the Lower Manhattan skyline without paying for a boat tour.",
-                  "imageUrl": "https://images.unsplash.com/photo-1620021392955-a00e470a9279?auto=format&fit=crop&q=80&w=1000",
-                  "ticketPrice": "Free",
-                  "timeRange": "09:30 AM - 11:00 AM",
-                  "timeToTravel": "10-20 mins via Subway (depending on hotel)",
-                  "coordinates": {
-                    "latitude": 40.7013,
-                    "longitude": -74.0139
-                  }
-                },
-                {
-                  "activityName": "9/11 Memorial & Oculus",
-                  "description": "Visit the poignant 9/11 Memorial and its reflecting pools, a powerful tribute to those lost. Then, marvel at the unique architecture of the Oculus, a striking transportation hub.",
-                  "imageUrl": "https://images.unsplash.com/photo-1534430480872-3498386e7a56?auto=format&fit=crop&q=80&w=1000",
-                  "ticketPrice": "Free (Museum entry is separate)",
-                  "timeRange": "11:30 AM - 01:00 PM",
-                  "timeToTravel": "5 mins walk from Ferry Terminal",
-                  "coordinates": {
-                    "latitude": 40.7115,
-                    "longitude": -74.0132
-                  }
-                },
-                {
-                  "activityName": "Brooklyn Bridge Walk",
-                  "description": "Walk across the iconic Brooklyn Bridge from Manhattan to Brooklyn. This historic walk offers stunning panoramic views of both Manhattan and Brooklyn skylines, perfect for photos.",
-                  "imageUrl": "https://images.unsplash.com/photo-1525934169-7a52a46e5555?auto=format&fit=crop&q=80&w=1000",
-                  "ticketPrice": "Free",
-                  "timeRange": "02:30 PM - 04:00 PM",
-                  "timeToTravel": "10-15 mins walk from 9/11 Memorial",
-                  "coordinates": {
-                    "latitude": 40.7061,
-                    "longitude": -73.9969
-                  }
-                },
-                {
-                  "activityName": "DUMBO & Brooklyn Bridge Park",
-                  "description": "Explore the charming DUMBO (Down Under the Manhattan Bridge Overpass) neighborhood. Take the famous shot on Washington Street, and relax in Brooklyn Bridge Park, enjoying the waterfront and Manhattan views.",
-                  "imageUrl": "https://images.unsplash.com/photo-1563228994-3a479c93a7a2?auto=format&fit=crop&q=80&w=1000",
-                  "ticketPrice": "Free",
-                  "timeRange": "04:00 PM - 06:00 PM",
-                  "timeToTravel": "5 mins walk from Brooklyn Bridge exit",
-                  "coordinates": {
-                    "latitude": 40.7033,
-                    "longitude": -73.9905
-                  }
-                }
-              ]
-            }
+          },
+          required: [
+            "bestMonths",
+            "peakSeason",
+            "offSeason",
+            "isSelectedMonthGood",
+            "selectedMonthAdvice",
+            "monthlyGuide"
           ]
-        })
-      }],
+        },
+        howToReach: {
+          type: Type.STRING,
+          description: "Comprehensive transport connectivity via flights, railways, and highways."
+        },
+        localTransport: {
+          type: Type.STRING,
+          description: "Best internal transit options (metro, rideshare, tuk-tuks, rentals, ferries)."
+        },
+        foodToTry: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: "Array of iconic regional culinary specialties and must-try dishes."
+        },
+        festivals: {
+          type: Type.ARRAY,
+          description: "Prominent regional festivals and events.",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              month: { type: Type.STRING }
+            },
+            required: ["name", "month"]
+          }
+        },
+        safetyAndEtiquette: {
+          type: Type.STRING,
+          description: "Essential local cultural etiquette, dress codes, and safety guidance."
+        },
+        packingTips: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: "Practical packing checklist recommendations tailored to the climate."
+        }
+      },
+      required: [
+        "overview",
+        "bestTimeToVisit",
+        "howToReach",
+        "localTransport",
+        "foodToTry",
+        "festivals",
+        "safetyAndEtiquette",
+        "packingTips"
+      ]
     },
-  ],
-});
+    hotelsOptions: {
+      type: Type.ARRAY,
+      description: "Array of at least 10 recommended accommodations matching the user's budget tier, traveler type, and preferred stay type.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          hotelName: { type: Type.STRING },
+          hotelAddress: { type: Type.STRING },
+          priceRange: { type: Type.STRING, description: "Localized price range with native currency symbol." },
+          rating: { type: Type.NUMBER, description: "Rating out of 5 (e.g. 4.2 to 4.9)." },
+          description: { type: Type.STRING },
+          stayType: { type: Type.STRING, description: "e.g. 'Hotel', 'Homestay', 'Hostel / Dormitory', 'Boutique'" },
+          foodHighlights: { type: Type.STRING, description: "Food & dining context (e.g. 'Pure-veg breakfast, 5+ vegetarian restaurants within 200m')." },
+          coordinates: {
+            type: Type.OBJECT,
+            properties: {
+              latitude: { type: Type.NUMBER },
+              longitude: { type: Type.NUMBER }
+            },
+            required: ["latitude", "longitude"]
+          }
+        },
+        required: ["hotelName", "hotelAddress", "priceRange", "rating", "description", "coordinates"]
+      }
+    },
+    itinerary: {
+      type: Type.ARRAY,
+      description: "Daily travel plans with geographically grouped activities and scheduled lunch breaks at local eateries.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          dayNumber: { type: Type.INTEGER },
+          theme: { type: Type.STRING },
+          activities: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                activityName: { type: Type.STRING, description: "Name of the attraction, activity, or lunch spot." },
+                description: { type: Type.STRING },
+                ticketPrice: { type: Type.STRING, description: "Localized price or 'Free' (for lunch: estimated meal cost)." },
+                timeRange: { type: Type.STRING, description: "e.g. '09:00 AM - 11:30 AM' or '01:00 PM - 02:00 PM'" },
+                timeToTravel: { type: Type.STRING, description: "Estimated transit time to this spot." },
+                isMealOrBreak: { type: Type.BOOLEAN, description: "Set to true if this slot is a dedicated lunch break or food stop at a local restaurant." },
+                coordinates: {
+                  type: Type.OBJECT,
+                  properties: {
+                    latitude: { type: Type.NUMBER },
+                    longitude: { type: Type.NUMBER }
+                  },
+                  required: ["latitude", "longitude"]
+                }
+              },
+              required: ["activityName", "description", "ticketPrice", "timeRange", "timeToTravel", "coordinates"]
+            }
+          }
+        },
+        required: ["dayNumber", "theme", "activities"]
+      }
+    }
+  },
+  required: ["tripNote", "destinationInfo", "hotelsOptions", "itinerary"]
+};
 
-//Main Function to Generate the Trip
-export async function generateTripWithAI(DYNAMIC_PROMPT) {
-  try {
-    //We use chat.send Message
-    const response = await chat.sendMessage({
-      message: DYNAMIC_PROMPT,
-    });
-    const textResponse = response.text;
-    // Cleaning the string: Remove Markdown JSON formatting if AI includes it 
-    const cleanJson = textResponse.replace(/```json|```/g,"").trim()
-    // console.log("Clean json: ",cleanJson);
-    return JSON.parse(cleanJson);
-  } catch (error) {
-    console.log("Error Generating the trip :",error);
-    throw error;
+/**
+ * Retries an asynchronous operation with exponential backoff on transient 429/503 errors.
+ *
+ * @param {Function} fn - Async operation to execute
+ * @param {number} retries - Maximum retry attempts (default 3)
+ * @param {number} baseDelayMs - Base delay in ms (default 1500)
+ * @returns {Promise<any>}
+ */
+async function callWithRetry(fn, retries = 3, baseDelayMs = 1500) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const errMsg = error?.message?.toLowerCase() || '';
+      const isTransient =
+        errMsg.includes('429') ||
+        errMsg.includes('503') ||
+        errMsg.includes('quota') ||
+        errMsg.includes('rate limit') ||
+        errMsg.includes('busy') ||
+        errMsg.includes('overloaded') ||
+        errMsg.includes('demand');
+
+      if (isTransient && attempt < retries - 1) {
+        const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 500;
+        console.warn(`Transient Gemini error (attempt ${attempt + 1}/${retries}). Retrying in ${Math.round(delay)}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error;
+    }
   }
 }
 
+/**
+ * Generates structured travel plan and destination intelligence using Gemini responseSchema.
+ * Uses responseMimeType: "application/json" and eliminates regex markdown stripping.
+ *
+ * @param {string} prompt - Detailed travel prompt
+ * @returns {Promise<Object>} Strictly structured JSON trip plan
+ */
+export async function generateTripWithAI(prompt) {
+  if (!apiKey) {
+    throw new Error('Gemini API key is missing. Please set VITE_GEMINI_API_KEY in your .env.local file.');
+  }
 
+  let lastError = null;
 
-const response1 = await chat.sendMessage({
-  message: "I have 2 dogs in my house.",
-});
-console.log("Chat response 1:", response1.text);
+  for (const model of CANDIDATE_MODELS) {
+    try {
+      const result = await callWithRetry(async () => {
+        const response = await ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: tripResponseSchema,
+          }
+        });
+
+        const textResponse = response?.text;
+        if (!textResponse) {
+          throw new Error(`Model ${model} returned an empty response.`);
+        }
+
+        // Direct parse enabled by responseMimeType & responseSchema
+        return JSON.parse(textResponse);
+      });
+
+      return result;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Model "${model}" attempt encountered an issue:`, error?.message || error);
+
+      const errMsg = error?.message?.toLowerCase() || '';
+      if (errMsg.includes('api_key') || errMsg.includes('unauthenticated') || errMsg.includes('key not valid')) {
+        break;
+      }
+    }
+  }
+
+  console.error('All Gemini generation attempts failed:', lastError);
+  throw lastError || new Error('Failed to generate trip with Gemini AI.');
+}
