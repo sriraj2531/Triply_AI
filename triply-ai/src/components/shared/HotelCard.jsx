@@ -3,13 +3,27 @@ import { Star, MapPin, BedDouble, Utensils } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { getPlacePhoto } from "../../services/placePhotoApi";
 
+/**
+ * HotelCard – Phase 4 update
+ *
+ * Priority for photos:
+ *   1. hotel.photoUrl  — pre-resolved at generation time (no extra API call)
+ *   2. Live getPlacePhoto() call — only when photoUrl is missing
+ *
+ * Coordinates stored on the hotel object are used to build a precise Maps link.
+ */
 const HotelCard = ({ hotel, destination = "" }) => {
-    const [placePhoto, setPlacePhoto] = useState('');
+    // Start with the pre-resolved photo URL if available
+    const [placePhoto, setPlacePhoto] = useState(hotel?.photoUrl || '');
 
     useEffect(() => {
-        if (!hotel?.hotelName) {
+        // If the trip document already has a resolved photo, use it immediately
+        if (hotel?.photoUrl) {
+            setPlacePhoto(hotel.photoUrl);
             return;
         }
+
+        if (!hotel?.hotelName) return;
 
         let isMounted = true;
         const loadPhoto = async () => {
@@ -23,13 +37,19 @@ const HotelCard = ({ hotel, destination = "" }) => {
         return () => {
             isMounted = false;
         };
-    }, [hotel?.hotelName, destination, hotel?.hotelAddress]);
+    }, [hotel?.hotelName, hotel?.photoUrl, destination, hotel?.hotelAddress]);
 
     if (!hotel) return null;
 
-    const mapUrl = hotel.placeId
-        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hotel.hotelName)}&query_place_id=${hotel.placeId}`
-        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${hotel.hotelName || ''}, ${hotel.hotelAddress || destination || ''}`.trim())}`;
+    // Build Maps URL: prefer placeId deep link, fall back to coordinate link, then name search
+    let mapUrl;
+    if (hotel.placeId) {
+        mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hotel.hotelName)}&query_place_id=${hotel.placeId}`;
+    } else if (hotel.coordinates?.latitude && hotel.coordinates?.longitude) {
+        mapUrl = `https://www.google.com/maps/search/?api=1&query=${hotel.coordinates.latitude},${hotel.coordinates.longitude}`;
+    } else {
+        mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${hotel.hotelName || ''}, ${hotel.hotelAddress || destination || ''}`.trim())}`;
+    }
 
     const formattedPrice = typeof hotel.priceRange === 'string'
         ? (hotel.priceRange.split(' p')[0] || hotel.priceRange)
@@ -82,6 +102,13 @@ const HotelCard = ({ hotel, destination = "" }) => {
                         <p className="text-xs text-gray-600 mt-1 mb-2 line-clamp-2 leading-relaxed">
                             {hotel.description || 'A highly rated stay offering comfortable lodging and prime connectivity.'}
                         </p>
+
+                        {/* Opening hours badge (from Places API) */}
+                        {hotel.openingHours && (
+                            <p className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg mb-2 line-clamp-1">
+                                🕐 {hotel.openingHours.split('|')[0].trim()}
+                            </p>
+                        )}
 
                         {/* Dining & Food Highlights */}
                         {hotel.foodHighlights && (

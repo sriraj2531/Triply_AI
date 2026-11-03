@@ -3,9 +3,10 @@ import { doc, getDoc } from "firebase/firestore";
 import { useNavigate, useParams } from 'react-router-dom';
 import { db } from '../services/firebaseConfig';
 import { FaArrowLeftLong } from 'react-icons/fa6';
-import { Calendar, AlertCircle, Home as HomeIcon, Hotel } from 'lucide-react';
+import { Calendar, AlertCircle, Home as HomeIcon, Hotel, Map, List } from 'lucide-react';
 import Itinerary from '../components/shared/Itinerary';
 import DestinationInfo from '../components/shared/DestinationInfo';
+import TripMap from '../components/shared/TripMap';
 import {
   Carousel,
   CarouselContent,
@@ -24,6 +25,8 @@ const TripDetails = () => {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [placePhoto, setPlacePhoto] = useState("");
+  /** 'list' | 'map' – controls itinerary view toggle */
+  const [itineraryView, setItineraryView] = useState('list');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -74,7 +77,7 @@ const TripDetails = () => {
     };
   }, [trip]);
 
-  // Loading skeleton state
+  // ── Loading skeleton ───────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50/50">
@@ -104,7 +107,7 @@ const TripDetails = () => {
     );
   }
 
-  // Not found or error state
+  // ── Not found / error state ────────────────────────────────────────────────
   if (notFound || !trip) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gray-50">
@@ -145,7 +148,7 @@ const TripDetails = () => {
 
   return (
     <div className='min-h-screen bg-gray-50/30'>
-      {/* Hero Banner with Destination Cover Photo */}
+      {/* ── Hero Banner ─────────────────────────────────────────────────── */}
       <div className='relative h-88 md:h-112 bg-gray-900 overflow-hidden'>
         <img
           src={placePhoto || '/private.png'}
@@ -170,7 +173,7 @@ const TripDetails = () => {
         </div>
       </div>
 
-      {/* Main Content Area */}
+      {/* ── Main Content ─────────────────────────────────────────────────── */}
       <div className='max-padd-container py-10 md:py-14 space-y-10'>
 
         {/* Destination Information, Climate Strip & Practical Guide */}
@@ -183,25 +186,58 @@ const TripDetails = () => {
 
         <div className='relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-8'>
 
-          {/* Left Column -> Daily Itinerary */}
+          {/* ── Left Column: Daily Itinerary + Map toggle ─────────────── */}
           <div className='lg:col-span-2 space-y-6'>
             <div className='bg-white p-6 sm:p-8 rounded-3xl shadow-xs border border-gray-100 space-y-6'>
+
+              {/* Header with List / Map toggle */}
               <div className='flex items-center justify-between pb-4 border-b border-gray-100'>
                 <h2 className='text-xl font-bold text-gray-900 flex items-center gap-2.5'>
                   <Calendar className='h-5 w-5 text-indigo-600' />
                   Your Daily Itinerary
                 </h2>
+
+                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                  <button
+                    onClick={() => setItineraryView('list')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      itineraryView === 'list'
+                        ? 'bg-white text-indigo-700 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <List className="w-3.5 h-3.5" /> List
+                  </button>
+                  <button
+                    onClick={() => setItineraryView('map')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      itineraryView === 'map'
+                        ? 'bg-white text-indigo-700 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <Map className="w-3.5 h-3.5" /> Map
+                  </button>
+                </div>
+              </div>
+
+              {/* Days Planned badge */}
+              <div className="flex items-center gap-2 -mt-4">
                 <span className='text-xs text-gray-500 font-medium'>
                   {trip?.userSelection?.noOfDays || 1} Days Planned
                 </span>
               </div>
 
-              {/* Itinerary Component */}
-              <Itinerary trip={trip} />
+              {/* Conditional view */}
+              {itineraryView === 'list' ? (
+                <Itinerary trip={trip} />
+              ) : (
+                <TripMap trip={trip} />
+              )}
             </div>
           </div>
 
-          {/* Right Column -> Hotel Options & Trip Overview Stats */}
+          {/* ── Right Column: Hotel Options & Trip Stats ──────────────── */}
           <div className='space-y-6'>
             {/* Hotels Recommendation Carousel */}
             <div className='bg-white p-6 rounded-3xl shadow-xs border border-gray-100 space-y-4'>

@@ -1,14 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { getPlacePhoto } from '../../services/placePhotoApi';
-import { Clock, Navigation, Ticket, Utensils } from 'lucide-react';
+import { Clock, Navigation, Ticket, Utensils, Star, Info } from 'lucide-react';
 
+/**
+ * ActivityCard – Phase 4 update
+ *
+ * Photo priority:
+ *   1. activity.photoUrl — pre-resolved at generation time (zero extra API calls)
+ *   2. Live getPlacePhoto() — only when photoUrl is absent (older trips)
+ *
+ * Also surfaces real rating and opening hours when available from Places enrichment.
+ */
 const ActivityCard = ({ activity, destination = "" }) => {
-  const [placePhoto, setPlacePhoto] = useState('');
+  // Start with the pre-resolved photo if the trip document has one
+  const [placePhoto, setPlacePhoto] = useState(activity?.photoUrl || '');
 
   useEffect(() => {
-    if (!activity?.activityName) {
+    // Use the pre-resolved photo immediately
+    if (activity?.photoUrl) {
+      setPlacePhoto(activity.photoUrl);
       return;
     }
+
+    if (!activity?.activityName) return;
 
     let isMounted = true;
     const loadPhoto = async () => {
@@ -22,7 +36,7 @@ const ActivityCard = ({ activity, destination = "" }) => {
     return () => {
       isMounted = false;
     };
-  }, [activity?.activityName, destination]);
+  }, [activity?.activityName, activity?.photoUrl, destination]);
 
   if (!activity) return null;
 
@@ -33,9 +47,15 @@ const ActivityCard = ({ activity, destination = "" }) => {
     activity.activityName?.toLowerCase().includes('restaurant')
   );
 
-  const mapUrl = activity.placeId
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.activityName)}&query_place_id=${activity.placeId}`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${activity.activityName || ''}, ${destination || ''}`.trim())}`;
+  // Build Maps URL: prefer placeId deep link → coordinates → name search
+  let mapUrl;
+  if (activity.placeId) {
+    mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.activityName)}&query_place_id=${activity.placeId}`;
+  } else if (activity.coordinates?.latitude && activity.coordinates?.longitude) {
+    mapUrl = `https://www.google.com/maps/search/?api=1&query=${activity.coordinates.latitude},${activity.coordinates.longitude}`;
+  } else {
+    mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${activity.activityName || ''}, ${destination || ''}`.trim())}`;
+  }
 
   return (
     <div className='group relative flex gap-x-5'>
@@ -68,6 +88,14 @@ const ActivityCard = ({ activity, destination = "" }) => {
             <span className='text-xs text-gray-500 flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-full'>
               <Navigation className="w-3 h-3 text-gray-500" />
               {activity.timeToTravel}
+            </span>
+          )}
+
+          {/* Real rating badge from Places API */}
+          {activity.rating && (
+            <span className='text-xs text-yellow-700 flex items-center gap-1 bg-yellow-50 border border-yellow-100 px-2 py-0.5 rounded-full'>
+              <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+              {activity.rating}
             </span>
           )}
         </div>
@@ -123,6 +151,21 @@ const ActivityCard = ({ activity, destination = "" }) => {
                 <p className="mt-2 text-xs text-gray-600 leading-relaxed line-clamp-3">
                   {activity.description || 'Explore and experience this attraction.'}
                 </p>
+
+                {/* Opening hours (from Places API) */}
+                {activity.openingHours && (
+                  <p className="mt-1.5 text-[11px] text-blue-600 flex items-center gap-1">
+                    <Info className="w-3 h-3 shrink-0" />
+                    {activity.openingHours.split('|')[0].trim()}
+                  </p>
+                )}
+
+                {/* Address from Places */}
+                {activity.address && (
+                  <p className="mt-1 text-[11px] text-gray-400 line-clamp-1">
+                    📍 {activity.address}
+                  </p>
+                )}
               </div>
             </div>
           </div>

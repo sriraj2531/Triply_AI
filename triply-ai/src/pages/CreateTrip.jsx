@@ -29,6 +29,7 @@ import {
 import { toast } from 'sonner';
 import { generateTripWithAI } from '../services/aiModel';
 import { groundTripData } from '../services/groundingService';
+import { enrichTripWithPlaces } from '../services/placesEnrichmentService';
 import LoginDialog from '../components/shared/LoginDialog';
 import { doc, setDoc } from "firebase/firestore";
 import { db } from '../services/firebaseConfig';
@@ -251,9 +252,12 @@ Core Requirements:
 
         try {
             const rawTripData = await generateTripWithAI(DYNAMIC_PROMPT);
-            // Ground data with real-world Wikipedia summary & Open-Meteo climate normals
+            // 1. Ground with Wikipedia overview & Open-Meteo climate normals
             const groundedTripData = await groundTripData(rawTripData, destinationName);
-            await saveToDB(groundedTripData, {
+            // 2. Enrich hotels & activities with real Google Places data (photos, placeId, coords)
+            const enrichedTripData = await enrichTripWithPlaces(groundedTripData, destinationName);
+            // 3. Save to Firestore
+            await saveToDB(enrichedTripData, {
                 ...formData,
                 noOfDays: days,
                 numberOfTravelers: travelerCount,
@@ -277,13 +281,16 @@ Core Requirements:
         }
     };
 
-    const saveToDB = async (tripData) => {
+    const saveToDB = async (tripData, resolvedSelection) => {
         try {
             const user = JSON.parse(localStorage.getItem("user"));
             const docId = Date.now().toString();
 
+            // Prefer the resolved selection (with clamped days & traveler count) over raw formData
+            const selectionToStore = resolvedSelection || formData;
+
             await setDoc(doc(db, "trips-ai", docId), {
-                userSelection: formData,
+                userSelection: selectionToStore,
                 tripData: tripData,
                 userEmail: user?.email || 'guest',
                 id: docId,
